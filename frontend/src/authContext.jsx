@@ -1,26 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
-/* eslint-disable react-hooks/set-state-in-effect */
-import { createContext, useState, useEffect, useContext } from "react";
-
-const AuthContext = createContext();
-
-export const useAuth = () => {
-  return useContext(AuthContext);
-};
-
-export const AuthProvider = ({ children }) => {
-  const [currentUser, setCurrentUser] = useState(null);
-  useEffect(() => {
-    const userId = localStorage.getItem("userId");
-    if (userId) {
-      setCurrentUser(userId);
-    }
-  }, []);
-
-  const value = {
-    currentUser,
-    setCurrentUser,
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
+// Re-export from Layer 2 Context for backward compatibility
+export { AuthContext, AuthProvider, useAuth } from "./context/AuthContext";
+export { default } from "./context/AuthContext";

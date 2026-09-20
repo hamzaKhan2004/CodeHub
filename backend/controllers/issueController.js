@@ -1,105 +1,82 @@
-const mongoose = require("mongoose");
-const Repository = require("../models/repoModel");
-const User = require("../models/userModel");
-const Issue = require("../models/issueModel");
+const issueService = require("../services/issueService");
+const { successResponse } = require("../utils/apiResponse");
 
+/**
+ * Issue Controller
+ * Pure HTTP transport handler for repository issues.
+ */
 
-const createIssue = async (req, res) => {
-    const { title, description } = req.body;
-    const { id } = req.params;
-
+const createIssue = async (req, res, next) => {
     try {
-        const issue = new Issue({
+        const repoId = req.params.repoId || req.params.id || req.body.repository;
+        const { title, description, labels, assignees } = req.body;
+
+        const issue = await issueService.createIssue(repoId, req.user._id, {
             title,
             description,
-            repository: id,
+            labels,
+            assignees,
         });
 
-        await issue.save();
-
-        res.status(201).json(issue);
+        return successResponse(res, 201, "Issue created successfully.", { issue });
     } catch (err) {
-        console.error("Error during issue creation : ", err.message);
-        res.status(500).send("Server error");
+        next(err);
     }
 };
 
-const updateIssueById = async (req, res) => {
-    const { id } = req.params;
-    const { title, description, status } = req.body;
+const getAllIssues = async (req, res, next) => {
     try {
-        const issue = await Issue.findById(id);
+        const repoId = req.params.repoId || req.params.id || req.query.repository;
+        const status = req.query.status || "open";
+        const label = req.query.label;
+        const author = req.query.author;
+        const search = req.query.search;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 25;
 
-        if (!issue) {
-            return res.status(404).json({ error: "Issue not found!" });
-        }
-
-        issue.title = title;
-        issue.description = description;
-        issue.status = status;
-
-        await issue.save();
-
-        res.json(issue, { message: "Issue updated" });
+        const result = await issueService.listIssues(repoId, { status, label, author, search, page, limit });
+        return successResponse(res, 200, "Issues retrieved.", result);
     } catch (err) {
-        console.error("Error during issue updation : ", err.message);
-        res.status(500).send("Server error");
-    }
-
-};
-
-const deleteIssueById = async (req, res) => {
-    const { id } = req.params;
-
-    try {
-        const issue = Issue.findByIdAndDelete(id);
-
-        if (!issue) {
-            return res.status(404).json({ error: "Issue not found!" });
-        }
-        res.json({ message: "Issue deleted" });
-    } catch (err) {
-        console.error("Error during issue deletion : ", err.message);
-        res.status(500).send("Server error");
+        next(err);
     }
 };
 
-const getAllIssues = async (req, res) => {
-    const { id } = req.params;
-
+const getIssueById = async (req, res, next) => {
     try {
-        const issues = Issue.find({ repository: id });
+        const repoId = req.params.repoId || req.query.repoId;
+        const identifier = req.params.id || req.params.issueNumber;
 
-        if (!issues) {
-            return res.status(404).json({ error: "Issues not found!" });
-        }
-        res.status(200).json(issues);
+        const result = await issueService.getIssue(repoId, identifier);
+        return successResponse(res, 200, "Issue retrieved.", result);
     } catch (err) {
-        console.error("Error during issue fetching : ", err.message);
-        res.status(500).send("Server error");
+        next(err);
     }
 };
 
-const getIssueById = async (req, res) => {
-    const { id } = req.params;
+const updateIssueById = async (req, res, next) => {
     try {
-        const issue = await Issue.findById(id);
-
-        if (!issue) {
-            return res.status(404).json({ error: "Issue not found!" });
-        }
-
-        res.json(issue);
+        const { id } = req.params;
+        const updated = await issueService.updateIssue(id, req.user._id, req.body);
+        return successResponse(res, 200, "Issue updated successfully.", { issue: updated });
     } catch (err) {
-        console.error("Error during issue updation : ", err.message);
-        res.status(500).send("Server error");
+        next(err);
+    }
+};
+
+const deleteIssueById = async (req, res, next) => {
+    try {
+        const { id } = req.params;
+        const result = await issueService.deleteIssue(id, req.user._id);
+        return successResponse(res, 200, result.message, null);
+    } catch (err) {
+        next(err);
     }
 };
 
 module.exports = {
     createIssue,
-    updateIssueById,
-    deleteIssueById,
     getAllIssues,
     getIssueById,
+    updateIssueById,
+    deleteIssueById,
 };

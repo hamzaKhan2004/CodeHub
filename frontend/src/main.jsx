@@ -1,13 +1,16 @@
 import { createRoot } from "react-dom/client";
 import "./index.css";
-import { AuthProvider } from "./authContext.jsx";
-import ProjectRoutes from "./Routes.jsx";
+import { AuthProvider } from "./context/AuthContext";
+import { ThemeProvider } from "./context/ThemeContext";
+import ProjectRoutes from "./Routes";
 import { BrowserRouter as Router } from "react-router";
 
 createRoot(document.getElementById("root")).render(
-  <AuthProvider>
-    <Router>
-      <ProjectRoutes />
-    </Router>
-  </AuthProvider>,
+    <ThemeProvider>
+        <AuthProvider>
+            <Router>
+                <ProjectRoutes />
+            </Router>
+        </AuthProvider>
+    </ThemeProvider>
 );

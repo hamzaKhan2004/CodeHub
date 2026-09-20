@@ -1,44 +1,81 @@
 const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
-const UserSchema = new Schema({
-    username: {
-        type: String,
-        required: true,
-        unique: true,
-    },
-    email: {
-        type: String,
-        required: true,
-        unique: true,
-    },
-    password: {
-        type: String,
-        select: false,
-    },
-    repositories: [
-        {
-            default: [],
-            type: Schema.Types.ObjectId,
-            ref: "Repository",
+const UserSchema = new Schema(
+    {
+        username: {
+            type: String,
+            required: true,
+            unique: true,
+            trim: true,
+            lowercase: true,
+            index: true,
         },
-    ],
-    followedUsers: [
-        {
-            default: [],
-            type: Schema.Types.ObjectId,
-            ref: "User",
+        email: {
+            type: String,
+            required: true,
+            unique: true,
+            trim: true,
+            lowercase: true,
+            index: true,
         },
-    ],
-    starRepos: [
-        {
-            default: [],
-            type: Schema.Types.ObjectId,
-            ref: "Repository",
+        password: {
+            type: String,
+            select: false,
         },
-    ],
-}, { timestamps: true });
+        name: {
+            type: String,
+            default: "",
+            trim: true,
+        },
+        avatarUrl: {
+            type: String,
+            default: "",
+        },
+        bio: {
+            type: String,
+            default: "",
+            maxlength: 300,
+        },
+        location: {
+            type: String,
+            default: "",
+        },
+        website: {
+            type: String,
+            default: "",
+        },
+        company: {
+            type: String,
+            default: "",
+        },
+        repositories: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "Repository",
+            },
+        ],
+        followers: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "User",
+            },
+        ],
+        followedUsers: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "User",
+            },
+        ],
+        starRepos: [
+            {
+                type: Schema.Types.ObjectId,
+                ref: "Repository",
+            },
+        ],
+    },
+    { timestamps: true }
+);
 
-const userModel = mongoose.model("User", UserSchema);
-
-module.exports = userModel;
+const User = mongoose.model("User", UserSchema);
+module.exports = User;

@@ -2,104 +2,92 @@ require("dotenv").config();
 
 const express = require("express");
 const cors = require("cors");
-const bodyParser = require("body-parser");
+const helmet = require("helmet");
 const morgan = require("morgan");
 const mongoose = require("mongoose");
 const http = require("http");
-const yargs = require("yargs");
 const { Server } = require("socket.io");
 
-
-const { hideBin } = require("yargs/helpers");
-
-const { initRepo } = require("./controllers/init.js");
-const { addRepo } = require("./controllers/add.js");
-const { commitRepo } = require("./controllers/commit.js");
-const { pushRepo } = require("./controllers/push.js");
-const { pullRepo } = require("./controllers/pull.js");
-const { revertRepo } = require("./controllers/revert.js");
 const mainRouter = require("./routes/main.router.js");
+const errorHandler = require("./middleware/errorHandler.js");
 
+// Check if CLI command was passed directly to index.js (backward compatibility)
+const cliCommands = ["init", "add", "commit", "push", "pull", "revert"];
+const userArg = process.argv[2];
 
-yargs(hideBin(process.argv))
-    .command("start", "Start a new server", {}, startServer)
-    .command("init", "Initialise a new repository", {}, initRepo)
-    .command("add <file>", "Add a file to the repository", (yargs) => {
-        yargs.positional("file", {
-            describe: "File to add to the staging area",
-            type: "string",
-        });
-    }, (argv) => {
-        addRepo(argv.file);
-    })
-    .command("commit <message>", "Commit the staged files", (yargs) => {
-        yargs.positional("message", {
-            describe: "Commit message",
-            type: "string",
-        });
-    }, (argv) => commitRepo(argv.message))
-    .command("push", "Push commits to S3", {}, pushRepo)
-    .command("pull", "Pull commits from S3", {}, pullRepo)
-    .command("revert <commitID>", "Revert to a specific commit", (yargs) => {
-        yargs.positional("commitID", {
-            describe: "Commit ID to revert to",
-            type: "string"
+if (userArg && cliCommands.includes(userArg)) {
+    require("./cli.js");
+} else if (require.main === module) {
+    startServer();
+}
+
+function createApp() {
+    const app = express();
+
+    // Security Headers & Cross-Origin Resource Sharing
+    app.use(helmet());
+    app.use(
+        cors({
+            origin: [
+                process.env.FRONTEND_URL || "http://localhost:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:5173",
+            ],
+            credentials: true,
+            methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+            allowedHeaders: ["Content-Type", "Authorization"],
         })
-    }, (argv) => revertRepo(argv.commitID))
-    .demandCommand(1, "You need at least one command")
-    .help().argv;
+    );
 
+    // Logging & Request Parsing
+    if (process.env.NODE_ENV !== "test") {
+        app.use(morgan("tiny"));
+    }
+    app.use(express.json({ limit: "10mb" }));
+    app.use(express.urlencoded({ extended: true, limit: "10mb" }));
+
+    // Mount Main Routes (both root and /api for backward and forward compatibility)
+    app.use("/api", mainRouter);
+    app.use("/", mainRouter);
+
+    // Centralized Error Handling Middleware (must be registered after all routes)
+    app.use(errorHandler);
+
+    return app;
+}
 
 function startServer() {
-    const app = express();
+    const app = createApp();
     const PORT = process.env.PORT || 3000;
 
-    app.use(bodyParser.json());
-    app.use(express.json());
-    app.use(morgan('tiny'));
+    // Database Connection
+    const mongoURI = process.env.MONGODB_URI || "mongodb://localhost:27017/codehub";
+    mongoose
+        .connect(mongoURI)
+        .then(() => console.log("MongoDB Connected Successfully!"))
+        .catch((err) => console.error("MongoDB Connection Error: ", err.message));
 
-    app.use(cors({ origin: "*" }));
-
-    const mongodURI = process.env.MONGODB_URI;
-
-    mongoose.connect(mongodURI)
-        .then(() => console.log("MongoDB Connected!"))
-        .catch((err) => console.log("Unable to connect : ", err))
-
-
-    let user = "test";
-
-    app.use("/", mainRouter)
-
+    // HTTP & Socket.IO Server Setup
     const httpServer = http.createServer(app);
     const io = new Server(httpServer, {
         cors: {
             origin: "*",
             methods: ["GET", "POST"],
-        }
+        },
     });
 
     io.on("connection", (socket) => {
         socket.on("joinRoom", (userID) => {
-            user = userID;
-            console.log("======");
-            console.log(user);
-            console.log("======");
-            console.log(userID);
-
+            socket.join(userID);
+            console.log(`User ${userID} connected to room.`);
         });
-    })
-
-    const db = mongoose.connection;
-
-    db.once("open", async () => {
-        console.log("CRUD operations called");
-        //CRUD Operations
-    })
+    });
 
     httpServer.listen(PORT, () => {
-        console.log(`Server is running on PORT ${PORT}`);
+        console.log(`🚀 CodeHub Server running on PORT ${PORT}`);
+    });
 
-    })
-
+    return { app, httpServer };
 }
+
+module.exports = { createApp, startServer };
