@@ -7,6 +7,8 @@ const RepoFile = require("../models/fileModel");
 const Notification = require("../models/notificationModel");
 const AppError = require("../utils/appError");
 
+const vcsService = require("./vcsService");
+
 /**
  * Repository Service
  * Encapsulates all business logic for repositories, branches, initialization, and starring.
@@ -19,6 +21,11 @@ class RepoService {
         const normalizedName = name.trim();
         const effectivePrivate = isPrivate || visibility === false;
         const effectiveVisibility = !effectivePrivate;
+
+        const ownerUser = await User.findById(ownerId);
+        if (!ownerUser) {
+            throw new AppError("Owner user not found.", 404, "USER_NOT_FOUND");
+        }
 
         // Check if repository with same name already exists for this owner
         const existing = await Repository.findOne({ owner: ownerId, name: normalizedName });
@@ -42,55 +49,61 @@ class RepoService {
             collaborators: [],
         });
 
-        // Initialize repository with a default branch and initial README.md
-        const initialSha = crypto.randomBytes(20).toString("hex");
+        const shouldInitReadme = initializeReadme === true || initializeReadme === "true";
 
-        const readmeContent = `# ${normalizedName}\n\n${description || "A new repository created on CodeHub."}\n`;
-
-        // 1. Create default branch
-        await Branch.create({
-            name: "main",
-            repository: newRepo._id,
-            commitSha: initialSha,
-            isDefault: true,
-            createdBy: ownerId,
+        // Initialize repository in S3 (custom VCS storage)
+        const vcsResult = await vcsService.createRemoteRepo(ownerUser.username, normalizedName, {
+            initializeReadme: shouldInitReadme,
+            description: description.trim(),
         });
 
-        // 2. Create initial commit
-        await Commit.create({
-            sha: initialSha,
-            message: "Initial commit",
-            author: ownerId,
-            repository: newRepo._id,
-            branch: "main",
-            parentSha: null,
-            filesChanged: [
-                {
-                    path: "README.md",
-                    status: "added",
-                    additions: readmeContent.split("\n").length,
-                    deletions: 0,
-                    patch: `+${readmeContent.replace(/\n/g, "\n+")}`,
+        // If and only if initializeReadme is true, synchronize metadata models
+        if (shouldInitReadme && vcsResult.commitID) {
+            const initialSha = vcsResult.commitID;
+            const readmeContent = `# ${normalizedName}\n\n${description || "A new repository created on CodeHub."}\n`;
+
+            await Branch.create({
+                name: "main",
+                repository: newRepo._id,
+                commitSha: initialSha,
+                isDefault: true,
+                createdBy: ownerId,
+            });
+
+            await Commit.create({
+                sha: initialSha,
+                message: "Initial commit",
+                author: ownerId,
+                repository: newRepo._id,
+                branch: "main",
+                parentSha: null,
+                filesChanged: [
+                    {
+                        path: "README.md",
+                        status: "added",
+                        additions: readmeContent.split("\n").length,
+                        deletions: 0,
+                        patch: `+${readmeContent.replace(/\n/g, "\n+")}`,
+                    },
+                ],
+                stats: {
+                    totalAdditions: readmeContent.split("\n").length,
+                    totalDeletions: 0,
+                    filesCount: 1,
                 },
-            ],
-            stats: {
-                totalAdditions: readmeContent.split("\n").length,
-                totalDeletions: 0,
-                filesCount: 1,
-            },
-        });
+            });
 
-        // 3. Create initial file
-        await RepoFile.create({
-            repository: newRepo._id,
-            branch: "main",
-            path: "README.md",
-            content: readmeContent,
-            size: Buffer.byteLength(readmeContent, "utf8"),
-            lastCommitSha: initialSha,
-            lastCommitMessage: "Initial commit",
-            lastCommitDate: new Date(),
-        });
+            await RepoFile.create({
+                repository: newRepo._id,
+                branch: "main",
+                path: "README.md",
+                content: readmeContent,
+                size: Buffer.byteLength(readmeContent, "utf8"),
+                lastCommitSha: initialSha,
+                lastCommitMessage: "Initial commit",
+                lastCommitDate: new Date(),
+            });
+        }
 
         // Update user's repositories list
         await User.findByIdAndUpdate(ownerId, {
@@ -268,16 +281,25 @@ class RepoService {
      * Delete repository and associated branches, commits, files, and issues
      */
     async deleteRepository(repoId, currentUserId) {
-        const repo = await Repository.findById(repoId);
+        const repo = await Repository.findById(repoId).populate("owner", "username");
         if (!repo) {
             throw new AppError("Repository not found.", 404, "NOT_FOUND");
         }
 
-        if (repo.owner.toString() !== currentUserId.toString()) {
+        if (repo.owner._id.toString() !== currentUserId.toString()) {
             throw new AppError("Only the repository owner can delete the repository.", 403, "FORBIDDEN");
         }
 
-        // Delete all associated entities
+        // Delete from S3 storage
+        if (repo.owner && repo.owner.username) {
+            try {
+                await vcsService.deleteRemoteRepo(repo.owner.username, repo.name);
+            } catch (err) {
+                console.error("Error deleting S3 storage:", err.message);
+            }
+        }
+
+        // Delete all associated entities in MongoDB
         await Promise.all([
             Repository.findByIdAndDelete(repoId),
             Branch.deleteMany({ repository: repoId }),

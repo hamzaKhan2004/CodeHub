@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router";
 import { useRepo } from "../hooks/useRepo";
 import { useAuth } from "../hooks/useAuth";
@@ -9,9 +9,9 @@ export const RepoSettingsPage = () => {
     const { owner, repo: repoName } = useParams();
     const navigate = useNavigate();
     const { currentUser } = useAuth();
-    const { repo, updateRepo, deleteRepo } = useRepo(owner, repoName);
+    const { repo, loading, error, updateRepo, deleteRepo } = useRepo(owner, repoName);
 
-    const [description, setDescription] = useState(repo?.description || "");
+    const [description, setDescription] = useState("");
     const [saving, setSaving] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [confirmText, setConfirmText] = useState("");
@@ -20,32 +20,42 @@ export const RepoSettingsPage = () => {
 
     const expectedConfirm = `${owner}/${repoName}`;
 
+    // Synchronize description when repository data loads
+    useEffect(() => {
+        if (repo) {
+            setDescription(repo.description || "");
+        }
+    }, [repo]);
+
     const handleSaveGeneral = async (e) => {
         e.preventDefault();
         setSaving(true);
         setStatusMessage("");
         try {
             await updateRepo({ description });
-            setStatusMessage("Repository settings updated.");
+            setStatusMessage("Repository settings updated successfully.");
         } catch (err) {
-            alert(err.message || "Failed to update repository.");
+            alert(err.message || "Failed to update repository settings.");
         } finally {
             setSaving(false);
         }
     };
 
     const handleToggleVisibility = async () => {
-        const nextVis = !repo.visibility;
+        if (!repo) return;
+        const currentVisibility = repo.visibility !== false && !repo.isPrivate;
+        const nextVis = !currentVisibility;
+
         if (
             window.confirm(
                 `Are you sure you want to change this repository to ${nextVis ? "public" : "private"}?`
             )
         ) {
             try {
-                await updateRepo({ visibility: nextVis });
+                await updateRepo({ visibility: nextVis, isPrivate: !nextVis });
                 setStatusMessage(`Repository is now ${nextVis ? "public" : "private"}.`);
             } catch (err) {
-                alert(err.message || "Failed to toggle visibility.");
+                alert(err.message || "Failed to change visibility.");
             }
         }
     };
@@ -63,9 +73,65 @@ export const RepoSettingsPage = () => {
         }
     };
 
+    // If still loading or repository not found, let RepoLayout handle the loading/error state
+    if (loading) {
+        return (
+            <RepoLayout>
+                <div style={{ maxWidth: "880px", margin: "40px auto", textAlign: "center", color: "var(--color-fg-muted)" }}>
+                    Loading settings...
+                </div>
+            </RepoLayout>
+        );
+    }
+
+    if (error || !repo) {
+        return (
+            <RepoLayout>
+                <div style={{ maxWidth: "880px", margin: "40px auto", textAlign: "center" }}>
+                    <h3 style={{ fontSize: "18px", marginBottom: "8px" }}>Repository not found</h3>
+                    <p style={{ color: "var(--color-fg-muted)" }}>{error || "Unable to load repository settings."}</p>
+                </div>
+            </RepoLayout>
+        );
+    }
+
+    // Check repository ownership
+    const isOwner = currentUser && (
+        (repo.owner?._id && repo.owner._id.toString() === (currentUser.id || currentUser._id)?.toString()) ||
+        (repo.owner?.username && repo.owner.username === currentUser.username) ||
+        (owner && owner.toLowerCase() === currentUser.username?.toLowerCase())
+    );
+
+    if (!isOwner) {
+        return (
+            <RepoLayout>
+                <div
+                    style={{
+                        maxWidth: "880px",
+                        margin: "40px auto",
+                        textAlign: "center",
+                        padding: "32px",
+                        backgroundColor: "var(--color-canvas-subtle)",
+                        border: "1px solid var(--color-border-default)",
+                        borderRadius: "6px",
+                    }}
+                >
+                    <h3 style={{ fontSize: "18px", marginBottom: "8px", color: "var(--color-danger-fg)" }}>
+                        Access Restricted
+                    </h3>
+                    <p style={{ color: "var(--color-fg-muted)", fontSize: "14px", margin: 0 }}>
+                        Only the repository owner ({owner}) can modify settings.
+                    </p>
+                </div>
+            </RepoLayout>
+        );
+    }
+
+    const isPrivate = repo.isPrivate || repo.visibility === false;
+
     return (
         <RepoLayout>
-            <div style={{ maxWidth: "880px", margin: "0 auto" }}>
+            <div style={{ maxWidth: "880px", margin: "0 auto", paddingBottom: "40px" }}>
                 <h2 style={{ fontSize: "20px", fontWeight: 600, marginBottom: "20px" }}>Repository Settings</h2>
 
                 {statusMessage && (
@@ -98,18 +164,40 @@ export const RepoSettingsPage = () => {
                     <form onSubmit={handleSaveGeneral}>
                         <div style={{ marginBottom: "16px" }}>
                             <label style={{ display: "block", fontSize: "14px", fontWeight: 600, marginBottom: "6px" }}>
-                                Repository description
+                                Repository name
                             </label>
                             <input
                                 type="text"
-                                value={description}
-                                onChange={(e) => setDescription(e.target.value)}
+                                value={repo.name}
+                                disabled
                                 style={{
                                     width: "100%",
                                     padding: "8px 12px",
                                     borderRadius: "6px",
                                     border: "1px solid var(--color-border-default)",
                                     backgroundColor: "var(--color-canvas-subtle)",
+                                    color: "var(--color-fg-muted)",
+                                    fontSize: "13px",
+                                    cursor: "not-allowed",
+                                }}
+                            />
+                        </div>
+
+                        <div style={{ marginBottom: "16px" }}>
+                            <label style={{ display: "block", fontSize: "14px", fontWeight: 600, marginBottom: "6px" }}>
+                                Repository description
+                            </label>
+                            <input
+                                type="text"
+                                value={description}
+                                onChange={(e) => setDescription(e.target.value)}
+                                placeholder="Describe your repository..."
+                                style={{
+                                    width: "100%",
+                                    padding: "8px 12px",
+                                    borderRadius: "6px",
+                                    border: "1px solid var(--color-border-default)",
+                                    backgroundColor: "var(--color-canvas-default)",
                                     color: "var(--color-fg-default)",
                                     fontSize: "13px",
                                 }}
@@ -127,6 +215,7 @@ export const RepoSettingsPage = () => {
                                 color: "var(--color-fg-default)",
                                 fontWeight: 500,
                                 fontSize: "13px",
+                                cursor: saving ? "wait" : "pointer",
                             }}
                         >
                             {saving ? "Saving..." : "Save changes"}
@@ -171,8 +260,7 @@ export const RepoSettingsPage = () => {
                             <div>
                                 <strong style={{ fontSize: "14px" }}>Change repository visibility</strong>
                                 <div style={{ fontSize: "12px", color: "var(--color-fg-muted)", marginTop: "2px" }}>
-                                    This repository is currently{" "}
-                                    <strong>{repo.isPrivate || repo.visibility === false ? "Private" : "Public"}</strong>.
+                                    This repository is currently <strong>{isPrivate ? "Private" : "Public"}</strong>.
                                 </div>
                             </div>
                             <button
@@ -185,6 +273,7 @@ export const RepoSettingsPage = () => {
                                     color: "var(--color-danger-fg)",
                                     fontSize: "12px",
                                     fontWeight: 600,
+                                    cursor: "pointer",
                                 }}
                             >
                                 Change visibility
@@ -218,6 +307,7 @@ export const RepoSettingsPage = () => {
                                     color: "white",
                                     fontSize: "12px",
                                     fontWeight: 600,
+                                    cursor: "pointer",
                                 }}
                             >
                                 Delete repository
@@ -257,7 +347,7 @@ export const RepoSettingsPage = () => {
                             </h3>
                             <p style={{ fontSize: "13px", color: "var(--color-fg-default)", lineHeight: "1.5", marginBottom: "16px" }}>
                                 This action <strong>cannot</strong> be undone. This will permanently delete the{" "}
-                                <strong>{owner}/{repoName}</strong> repository, branches, commits, files, and issues.
+                                <strong>{owner}/{repoName}</strong> repository, branches, commits, and files.
                             </p>
                             <p style={{ fontSize: "13px", color: "var(--color-fg-muted)", marginBottom: "8px" }}>
                                 Please type <strong>{expectedConfirm}</strong> to confirm.
@@ -291,6 +381,7 @@ export const RepoSettingsPage = () => {
                                             border: "1px solid var(--color-border-default)",
                                             backgroundColor: "transparent",
                                             color: "var(--color-fg-default)",
+                                            cursor: "pointer",
                                         }}
                                     >
                                         Cancel
@@ -307,6 +398,7 @@ export const RepoSettingsPage = () => {
                                             fontWeight: 600,
                                             fontSize: "13px",
                                             opacity: confirmText.trim() === expectedConfirm ? 1 : 0.6,
+                                            cursor: confirmText.trim() === expectedConfirm ? "pointer" : "not-allowed",
                                         }}
                                     >
                                         {deleting ? "Deleting..." : "I understand, delete this repository"}

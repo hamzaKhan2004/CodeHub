@@ -1,21 +1,16 @@
-const path = require("path")
-const fs = require("fs").promises;
+const vcsService = require("../services/vcsService");
 
-const addRepo = async (filePath) => {
-    const repoPath = path.resolve(process.cwd(), ".myGit");
-    const stagingPath = path.join(repoPath, "staging");
+const addRepo = async (filePath = ".") => {
     try {
-        await fs.mkdir(stagingPath, { recursive: true });
-        const fileName = path.basename(filePath);
-        await fs.copyFile(filePath, path.join(stagingPath, fileName));
-
-        console.log(`File ${fileName} added to the staging`);
-
+        const result = await vcsService.addLocal(process.cwd(), filePath);
+        if (result.stagedAll) {
+            console.log("All files added to the staging area");
+        } else {
+            console.log(`File ${result.stagedPath} added to the staging`);
+        }
     } catch (error) {
-        console.log("Error adding file : ", error);
+        console.log("Error adding file : ", error.message || error);
     }
-
-
-}
+};
 
 module.exports = { addRepo };

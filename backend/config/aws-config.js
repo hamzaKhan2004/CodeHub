@@ -1,7 +1,8 @@
+require("dotenv").config({ path: require("path").resolve(__dirname, "../.env") });
 const AWS = require("aws-sdk");
 
 AWS.config.update({
-    region: process.env.AWS_REGION
+    region: process.env.AWS_REGION || "eu-north-1",
 });
 
 const s3 = new AWS.S3();

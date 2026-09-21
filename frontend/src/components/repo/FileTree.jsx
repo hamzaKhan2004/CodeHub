@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import BranchDropdown from "./BranchDropdown";
 import MarkdownViewer from "./MarkdownViewer";
+import QuickSetup from "./QuickSetup";
 import { formatDate } from "../../core/utils/dateFormatter";
 import {
     FileDirectoryIcon,
@@ -239,9 +240,15 @@ export const FileTree = ({
 
                 {/* File / Folder Rows */}
                 {tree.length === 0 ? (
-                    <div style={{ padding: "32px", textAlign: "center", color: "var(--color-fg-muted)" }}>
-                        This directory is empty.
-                    </div>
+                    !currentPath && !latestCommit ? (
+                        <div style={{ padding: "20px" }}>
+                            <QuickSetup owner={owner} repoName={repoName} branch={branch} basePath={basePath} />
+                        </div>
+                    ) : (
+                        <div style={{ padding: "32px", textAlign: "center", color: "var(--color-fg-muted)" }}>
+                            This directory is empty.
+                        </div>
+                    )
                 ) : (
                     tree.map((item) => {
                         const isDir = item.type === "dir";

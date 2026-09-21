@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-require("dotenv").config();
+require("dotenv").config({ path: require("path").resolve(__dirname, ".env") });
 const yargs = require("yargs");
 const { hideBin } = require("yargs/helpers");
 
@@ -11,14 +11,25 @@ const { pullRepo } = require("./controllers/pull.js");
 const { revertRepo } = require("./controllers/revert.js");
 
 yargs(hideBin(process.argv))
-    .command("init", "Initialise a new repository", {}, initRepo)
     .command(
-        "add <file>",
-        "Add a file to the repository",
+        "init [repo]",
+        "Initialise a new repository",
+        (yargs) => {
+            yargs.positional("repo", {
+                describe: "Repository in owner/repo format (optional)",
+                type: "string",
+            });
+        },
+        (argv) => initRepo(argv.repo)
+    )
+    .command(
+        "add [file]",
+        "Add file(s) to the staging area",
         (yargs) => {
             yargs.positional("file", {
-                describe: "File to add to the staging area",
+                describe: "File to add to the staging area (use '.' for all)",
                 type: "string",
+                default: ".",
             });
         },
         (argv) => {
@@ -36,8 +47,18 @@ yargs(hideBin(process.argv))
         },
         (argv) => commitRepo(argv.message)
     )
-    .command("push", "Push commits to S3", {}, pushRepo)
-    .command("pull", "Pull commits from S3", {}, pullRepo)
+    .command(
+        "push [remote] [branch]",
+        "Push commits to S3",
+        {},
+        (argv) => pushRepo(argv.remote, argv.branch)
+    )
+    .command(
+        "pull [remote] [branch]",
+        "Pull commits from S3",
+        {},
+        (argv) => pullRepo(argv.remote, argv.branch)
+    )
     .command(
         "revert <commitID>",
         "Revert to a specific commit",

@@ -235,6 +235,48 @@ describe("CodeHub Full API Integration Suite", { concurrency: 1 }, () => {
             assert.strictEqual(res.body.data.isStarred, false);
             assert.strictEqual(res.body.data.starsCount, 0);
         });
+
+        it("POST /api/repo/create with initializeReadme=false should create a genuinely empty repository", async () => {
+            const emptyRepoName = `empty-repo-${timestamp}`;
+            const res = await request(app)
+                .post("/api/repo/create")
+                .set("Authorization", `Bearer ${user1Token}`)
+                .send({
+                    name: emptyRepoName,
+                    description: "An empty repository without README",
+                    visibility: true,
+                    initializeReadme: false,
+                });
+            assert.strictEqual(res.status, 201);
+            const emptyRepo = res.body.data.repository;
+            assert.ok(emptyRepo._id);
+
+            // Verify tree is completely empty
+            const treeRes = await request(app).get(`/api/repos/${emptyRepo._id}/tree`);
+            assert.strictEqual(treeRes.status, 200);
+            assert.strictEqual(treeRes.body.data.isEmpty, true);
+            assert.strictEqual(treeRes.body.data.tree.length, 0);
+            assert.strictEqual(treeRes.body.data.latestCommit, null);
+
+            // Verify commits is completely empty
+            const commitsRes = await request(app).get(`/api/repos/${emptyRepo._id}/commits`);
+            assert.strictEqual(commitsRes.status, 200);
+            assert.strictEqual(commitsRes.body.data.commits.length, 0);
+
+            // Clean up
+            await request(app)
+                .delete(`/api/repo/delete/${emptyRepo._id}`)
+                .set("Authorization", `Bearer ${user1Token}`);
+        });
+
+        it("Custom VCS: GET /api/repos/:repoId/tree should fetch repository state directly from S3", async () => {
+            const res = await request(app).get(`/api/repos/${repo1Id}/tree`);
+            assert.strictEqual(res.status, 200);
+            assert.strictEqual(res.body.data.isEmpty, false);
+            assert.ok(res.body.data.tree.some((f) => f.name === "README.md"));
+            assert.ok(res.body.data.readme);
+            assert.strictEqual(res.body.data.readme.path, "README.md");
+        });
     });
 
     // 4. Git Emulation (Branches, Files, Commits)

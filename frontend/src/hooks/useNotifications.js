@@ -38,12 +38,11 @@ export const useNotifications = () => {
     useEffect(() => {
         if (isAuthenticated) {
             fetchNotifications();
-            fetchUnreadCount();
         } else {
             setNotifications([]);
             setUnreadCount(0);
         }
-    }, [isAuthenticated, fetchNotifications, fetchUnreadCount]);
+    }, [isAuthenticated, fetchNotifications]);
 
     const markAsRead = async (id) => {
         await notificationService.markAsRead(id);

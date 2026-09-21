@@ -1,26 +1,16 @@
-const path = require("path")
-const fs = require("fs").promises;
+const vcsService = require("../services/vcsService");
 
-const initRepo = async () => {
-    const repoPath = path.resolve(process.cwd(), ".myGit");
-    const commitsPath = path.join(repoPath, "commits");
-
+const initRepo = async (repoIdentifier = "") => {
     try {
-        await fs.mkdir(repoPath, { recursive: true });
-        await fs.mkdir(commitsPath, { recursive: true });
-        await fs.writeFile(
-            path.join(repoPath, "config.json"),
-            JSON.stringify({ bucket: "S3 bucket" })
-        );
-        console.log("Repository initialised");
-
-
+        const { config } = await vcsService.initLocal(process.cwd(), repoIdentifier);
+        if (config.repository) {
+            console.log(`Repository initialised for ${config.owner ? config.owner + "/" : ""}${config.repository}`);
+        } else {
+            console.log("Repository initialised");
+        }
     } catch (error) {
         console.log("Error initialising repository", error);
     }
-
-
-
-}
+};
 
 module.exports = { initRepo };

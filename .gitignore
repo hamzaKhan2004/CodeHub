@@ -17,6 +17,9 @@ build/
 # Local Git simulation storage
 .myGit/
 backend/.myGit/
+repo-storage/
+backend/repo-storage/
+repositories/
 
 # Personal interview & learning notes (DO NOT COMMIT)
 LEARNING.md

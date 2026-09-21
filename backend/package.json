@@ -9,6 +9,9 @@
     "cli": "node cli.js",
     "test": "node --test tests/api.test.js"
   },
+  "bin": {
+    "mygit": "./cli.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
