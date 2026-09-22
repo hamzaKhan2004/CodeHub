@@ -6,9 +6,28 @@ import RepoLayout from "../layouts/RepoLayout";
 import FileEditor from "../components/repo/FileEditor";
 
 export const FileEditPage = () => {
-    const { owner, repo: repoName, branch = "main", "*": filePath } = useParams();
+    const params = useParams();
+    const owner = params.owner;
+    const repoName = params.repo;
     const navigate = useNavigate();
     const { repo } = useRepo(owner, repoName);
+
+    // Defensively resolve branch and filePath
+    let branch = params.branch || repo?.defaultBranch || "main";
+    let rawFilePath = params["*"] || "";
+
+    if (!params.branch && rawFilePath) {
+        const parts = rawFilePath.split("/");
+        branch = parts[0] || branch;
+        rawFilePath = parts.slice(1).join("/");
+    }
+
+    let filePath = "";
+    try {
+        filePath = decodeURIComponent(rawFilePath);
+    } catch {
+        filePath = rawFilePath;
+    }
 
     const [initialContent, setInitialContent] = useState("");
     const [loading, setLoading] = useState(true);

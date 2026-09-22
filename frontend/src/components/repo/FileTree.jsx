@@ -20,6 +20,9 @@ export const FileTree = ({
     tree = [],
     readme = null,
     latestCommit = null,
+    loading = false,
+    error = null,
+    onRetry = null,
     onSelectBranch,
     onCreateBranch,
     canEdit = false,
@@ -170,7 +173,7 @@ export const FileTree = ({
                 }}
             >
                 {/* Latest Commit Bar */}
-                {latestCommit && (
+                {!loading && !error && latestCommit && (
                     <div
                         style={{
                             backgroundColor: "var(--color-canvas-subtle)",
@@ -217,7 +220,7 @@ export const FileTree = ({
                 )}
 
                 {/* Parent Directory Link if inside subfolder */}
-                {currentPath && (
+                {!loading && !error && currentPath && (
                     <div
                         style={{
                             padding: "10px 16px",
@@ -239,7 +242,45 @@ export const FileTree = ({
                 )}
 
                 {/* File / Folder Rows */}
-                {tree.length === 0 ? (
+                {loading ? (
+                    <div style={{ padding: "48px 16px", textAlign: "center", color: "var(--color-fg-muted)" }}>
+                        <div style={{ marginBottom: "12px", display: "flex", justifyContent: "center" }}>
+                            <div
+                                style={{
+                                    width: "24px",
+                                    height: "24px",
+                                    border: "2px solid var(--color-border-default)",
+                                    borderTopColor: "var(--color-accent-fg)",
+                                    borderRadius: "50%",
+                                    animation: "spin 1s linear infinite",
+                                }}
+                            />
+                        </div>
+                        <span>Loading files from AWS S3...</span>
+                    </div>
+                ) : error ? (
+                    <div style={{ padding: "40px 16px", textAlign: "center" }}>
+                        <p style={{ color: "var(--color-danger-fg)", marginBottom: "12px", fontSize: "14px" }}>
+                            {error || "Failed to load files from storage."}
+                        </p>
+                        {onRetry && (
+                            <button
+                                onClick={onRetry}
+                                style={{
+                                    padding: "6px 14px",
+                                    borderRadius: "6px",
+                                    border: "1px solid var(--color-border-default)",
+                                    backgroundColor: "var(--color-canvas-subtle)",
+                                    color: "var(--color-fg-default)",
+                                    cursor: "pointer",
+                                    fontSize: "13px",
+                                }}
+                            >
+                                Retry
+                            </button>
+                        )}
+                    </div>
+                ) : tree.length === 0 ? (
                     !currentPath && !latestCommit ? (
                         <div style={{ padding: "20px" }}>
                             <QuickSetup owner={owner} repoName={repoName} branch={branch} basePath={basePath} />
@@ -315,7 +356,7 @@ export const FileTree = ({
             </div>
 
             {/* README Preview if available */}
-            {readme && <MarkdownViewer content={readme.content} title={readme.path} />}
+            {!loading && !error && readme && <MarkdownViewer content={readme.content} title={readme.path} />}
         </div>
     );
 };

@@ -11,6 +11,8 @@ const { pullRepo } = require("./controllers/pull.js");
 const { revertRepo } = require("./controllers/revert.js");
 
 yargs(hideBin(process.argv))
+    .scriptName("mygit")
+    .usage("$0 <command> [options]")
     .command(
         "init [repo]",
         "Initialise a new repository",
@@ -37,15 +39,28 @@ yargs(hideBin(process.argv))
         }
     )
     .command(
-        "commit <message>",
+        "commit [message]",
         "Commit the staged files",
         (yargs) => {
-            yargs.positional("message", {
-                describe: "Commit message",
-                type: "string",
-            });
+            yargs
+                .positional("message", {
+                    describe: "Commit message",
+                    type: "string",
+                })
+                .option("m", {
+                    alias: "message-opt",
+                    describe: "Commit message",
+                    type: "string",
+                });
         },
-        (argv) => commitRepo(argv.message)
+        (argv) => {
+            const msg = argv.message || argv.m || argv["message-opt"];
+            if (!msg) {
+                console.error("Error: commit message is required. Usage: mygit commit <message> or mygit commit -m <message>");
+                process.exit(1);
+            }
+            commitRepo(msg);
+        }
     )
     .command(
         "push [remote] [branch]",

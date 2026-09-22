@@ -576,20 +576,59 @@ class VCSService {
         }).promise();
         const headCommitId = headObj.Body.toString("utf-8").trim();
 
-        const cleanPath = filePath.replace(/^\/+/, "");
+        // 1. Normalize and URL-decode the incoming file path
+        let cleanPath = decodeURIComponent(filePath || "")
+            .replace(/^(\.\/|\.\\|\/|\\)+/, "")
+            .replace(/\\/g, "/");
+
+        // 2. If cleanPath accidentally starts with `${branch}/`, strip it (e.g. "main/src/index.js" -> "src/index.js")
+        if (cleanPath.startsWith(`${branch}/`)) {
+            cleanPath = cleanPath.slice(branch.length + 1);
+        }
+
         const fileKey = `${prefix}commits/${headCommitId}/${cleanPath}`;
 
-        const fileObj = await this.s3.getObject({
-            Bucket: this.bucket,
-            Key: fileKey,
-        }).promise();
+        console.log(
+            `[VCS S3 Blob] Repository: ${owner}/${repoName}, Branch: ${branch}, Commit: ${headCommitId}, Path: ${cleanPath}, Resolved S3 key: ${fileKey}`
+        );
 
-        return {
-            content: fileObj.Body.toString("utf-8"),
-            path: cleanPath,
-            size: fileObj.ContentLength,
-            commitSha: headCommitId,
-        };
+        try {
+            const fileObj = await this.s3.getObject({
+                Bucket: this.bucket,
+                Key: fileKey,
+            }).promise();
+
+            return {
+                content: fileObj.Body.toString("utf-8"),
+                path: cleanPath,
+                size: fileObj.ContentLength,
+                commitSha: headCommitId,
+            };
+        } catch (err) {
+            console.warn(
+                `[VCS S3 Blob Error] Repository: ${owner}/${repoName}, Branch: ${branch}, Commit: ${headCommitId}, Path: ${cleanPath}, S3 Key: ${fileKey}, Error: ${err.message}`
+            );
+
+            // Fallback attempt: if cleanPath differed from the raw filePath, attempt raw lookup
+            const rawClean = (filePath || "").replace(/^(\.\/|\.\\|\/|\\)+/, "").replace(/\\/g, "/");
+            if (rawClean && rawClean !== cleanPath) {
+                const altKey = `${prefix}commits/${headCommitId}/${rawClean}`;
+                try {
+                    const altObj = await this.s3.getObject({
+                        Bucket: this.bucket,
+                        Key: altKey,
+                    }).promise();
+                    return {
+                        content: altObj.Body.toString("utf-8"),
+                        path: rawClean,
+                        size: altObj.ContentLength,
+                        commitSha: headCommitId,
+                    };
+                } catch (_) {}
+            }
+
+            throw err;
+        }
     }
 
     /**

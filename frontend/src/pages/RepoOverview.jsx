@@ -29,7 +29,9 @@ export const RepoOverview = () => {
         tree,
         readme,
         latestCommit,
-        loading,
+        loading: fileLoading,
+        error: fileError,
+        refetch,
         createBranch,
     } = useFileTree(repo?._id, activeBranch, subPath);
 
@@ -55,6 +57,9 @@ export const RepoOverview = () => {
                 tree={tree}
                 readme={readme}
                 latestCommit={latestCommit}
+                loading={fileLoading}
+                error={fileError}
+                onRetry={refetch}
                 onSelectBranch={handleSelectBranch}
                 onCreateBranch={createBranch}
                 canEdit={isOwner}

@@ -7,14 +7,44 @@ import RepoLayout from "../layouts/RepoLayout";
 import CodeViewer from "../components/repo/CodeViewer";
 
 export const FileViewPage = () => {
-    const { owner, repo: repoName, branch = "main", "*": filePath } = useParams();
+    const params = useParams();
+    const owner = params.owner;
+    const repoName = params.repo;
     const navigate = useNavigate();
     const { currentUser } = useAuth();
-    const { repo } = useRepo(owner, repoName);
+    const { repo, loading: repoLoading, error: repoError } = useRepo(owner, repoName);
+
+    // Defensively resolve branch and filePath
+    let branch = params.branch || repo?.defaultBranch || "main";
+    let rawFilePath = params["*"] || "";
+
+    // If route was /:owner/:repo/blob/* without explicit :branch, splat contains "branch/path/to/file"
+    if (!params.branch && rawFilePath) {
+        const parts = rawFilePath.split("/");
+        branch = parts[0] || branch;
+        rawFilePath = parts.slice(1).join("/");
+    }
+
+    let filePath = "";
+    try {
+        filePath = decodeURIComponent(rawFilePath);
+    } catch {
+        filePath = rawFilePath;
+    }
 
     const [fileData, setFileData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
+
+    // Synchronously reset file state whenever file target changes
+    const fileKey = `${repo?._id}/${branch}/${filePath}`;
+    const [prevFileKey, setPrevFileKey] = useState(fileKey);
+    if (fileKey !== prevFileKey) {
+        setPrevFileKey(fileKey);
+        setFileData(null);
+        setLoading(true);
+        setError(null);
+    }
 
     useEffect(() => {
         const loadFile = async () => {
@@ -26,6 +56,7 @@ export const FileViewPage = () => {
                 setFileData(data);
             } catch (err) {
                 setError(err.message || "Failed to load file content.");
+                setFileData(null);
             } finally {
                 setLoading(false);
             }

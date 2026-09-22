@@ -12,18 +12,22 @@ const inFlightPromises = new Map();
  */
 export const useRepo = (owner, repoName) => {
     const cacheKey = owner && repoName ? `${owner.toLowerCase().trim()}/${repoName.toLowerCase().trim()}` : null;
-    const cachedData = cacheKey ? repoCache.get(cacheKey) : null;
 
-    const [repo, setRepo] = useState(cachedData || null);
-    const [loading, setLoading] = useState(!cachedData);
+    const [repo, setRepo] = useState(null);
+    const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
-    const fetchRepo = useCallback(async (force = false) => {
-        if (!owner || !repoName || !cacheKey) return;
+    // Synchronously reset state whenever repository identity changes
+    const [prevCacheKey, setPrevCacheKey] = useState(cacheKey);
+    if (cacheKey !== prevCacheKey) {
+        setPrevCacheKey(cacheKey);
+        setRepo(null);
+        setLoading(true);
+        setError(null);
+    }
 
-        // If data is already cached and not forced, reuse cached data
-        if (!force && repoCache.has(cacheKey)) {
-            setRepo(repoCache.get(cacheKey));
+    const fetchRepo = useCallback(async (force = false) => {
+        if (!owner || !repoName || !cacheKey) {
             setLoading(false);
             return;
         }
@@ -36,6 +40,7 @@ export const useRepo = (owner, repoName) => {
                 setError(null);
             } catch (err) {
                 setError(err.message || "Failed to load repository.");
+                setRepo(null);
             } finally {
                 setLoading(false);
             }

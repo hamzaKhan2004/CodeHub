@@ -13,7 +13,11 @@ const AppError = require("../utils/appError");
 class FileService {
     cleanPath(rawPath) {
         if (!rawPath) return "";
-        return rawPath.replace(/^[./\\]+/, "").replace(/\\/g, "/");
+        try {
+            return decodeURIComponent(rawPath).replace(/^(\.\/|\.\\|\/|\\)+/, "").replace(/\\/g, "/");
+        } catch {
+            return rawPath.replace(/^(\.\/|\.\\|\/|\\)+/, "").replace(/\\/g, "/");
+        }
     }
 
     async getRepoInfo(repoId) {

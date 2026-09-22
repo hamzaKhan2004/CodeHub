@@ -128,10 +128,28 @@ const ProjectRoutes = () => {
 
         // Repository Views
         { path: "/:owner/:repo", element: <RepoOverview /> },
+        { path: "/:owner/:repo/tree/:branch/*", element: <RepoOverview /> },
         { path: "/:owner/:repo/tree/*", element: <RepoOverview /> },
+        { path: "/:owner/:repo/blob/:branch/*", element: <FileViewPage /> },
         { path: "/:owner/:repo/blob/*", element: <FileViewPage /> },
         {
+            path: "/:owner/:repo/edit/:branch/*",
+            element: (
+                <ProtectedRoute>
+                    <FileEditPage />
+                </ProtectedRoute>
+            ),
+        },
+        {
             path: "/:owner/:repo/edit/*",
+            element: (
+                <ProtectedRoute>
+                    <FileEditPage />
+                </ProtectedRoute>
+            ),
+        },
+        {
+            path: "/:owner/:repo/new/:branch/*",
             element: (
                 <ProtectedRoute>
                     <FileEditPage />

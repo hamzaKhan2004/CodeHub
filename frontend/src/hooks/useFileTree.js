@@ -15,6 +15,18 @@ export const useFileTree = (repoId, defaultBranch = "main", initialPath = "") =>
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
 
+    // Synchronously clear stale tree data when repoId, branch, or currentPath changes
+    const treeKey = `${repoId || ""}/${branch || defaultBranch}/${currentPath || ""}`;
+    const [prevTreeKey, setPrevTreeKey] = useState(treeKey);
+    if (treeKey !== prevTreeKey) {
+        setPrevTreeKey(treeKey);
+        setTree([]);
+        setReadme(null);
+        setLatestCommit(null);
+        setLoading(true);
+        setError(null);
+    }
+
     // Sync branch with defaultBranch when loaded
     useEffect(() => {
         if (defaultBranch) {
