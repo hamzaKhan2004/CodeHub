@@ -26,19 +26,27 @@ function createApp() {
 
     // Security Headers & Cross-Origin Resource Sharing
     app.use(helmet());
+    const allowedOrigins = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://main.d31x320hv8k13m.amplifyapp.com",
+    ];
+
+    if (process.env.FRONTEND_URL) {
+        const cleanFrontendUrl = process.env.FRONTEND_URL.replace(/\/+$/, "");
+        if (!allowedOrigins.includes(cleanFrontendUrl)) {
+            allowedOrigins.push(cleanFrontendUrl);
+        }
+    }
+
     app.use(
         cors({
-            origin: [
-                process.env.FRONTEND_URL || "http://localhost:5173",
-                "http://localhost:3000",
-                "http://127.0.0.1:5173",
-            ],
+            origin: allowedOrigins,
             credentials: true,
             methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
             allowedHeaders: ["Content-Type", "Authorization"],
         })
     );
-
     // Logging & Request Parsing
     if (process.env.NODE_ENV !== "test") {
         app.use(morgan("tiny"));
